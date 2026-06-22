@@ -25,6 +25,8 @@ contextBridge.exposeInMainWorld('voiceType', {
   deleteModel: (id) => ipcRenderer.invoke('delete-model', id),
   switchModel: (id) => ipcRenderer.invoke('switch-model', id),
   getModelReady: () => ipcRenderer.invoke('get-model-ready'),
+  setHotkey: (id) => ipcRenderer.invoke('set-hotkey', id),
+  getHotkeyOptions: () => ipcRenderer.invoke('get-hotkey-options'),
 
   completeOnboarding: () => ipcRenderer.invoke('complete-onboarding'),
 

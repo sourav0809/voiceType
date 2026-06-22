@@ -2,6 +2,7 @@ const { ipcMain } = require('electron');
 const store = require('./store');
 const permissions = require('./permissions');
 const whisper = require('./whisper-native');
+const hotkey = require('./hotkey');
 
 let _modelManager = null;
 let _mainWindow = null;
@@ -46,6 +47,14 @@ function registerHandlers() {
   ipcMain.handle('get-model-ready', () => ({
     ready: whisper.isReady(),
   }));
+
+  ipcMain.handle('set-hotkey', (_, hotkeyId) => {
+    store.set('hotkey', hotkeyId);
+    hotkey.updateHotkey(hotkeyId);
+    return true;
+  });
+
+  ipcMain.handle('get-hotkey-options', () => hotkey.HOTKEY_OPTIONS);
 
   ipcMain.handle('complete-onboarding', () => { store.set('onboardingComplete', true); });
 }

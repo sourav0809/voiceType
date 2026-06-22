@@ -1,6 +1,23 @@
 import React, { useState, useEffect } from 'react';
 
-const STEPS = ['welcome', 'microphone', 'accessibility', 'model', 'done'];
+const isMac = window.voiceType.platform === 'darwin';
+
+const STEPS = ['welcome', 'microphone', 'accessibility', 'model', 'hotkey', 'done'];
+
+// Hotkey options — label shown in picker
+const HOTKEY_OPTIONS = isMac
+  ? [
+      { id: 'meta+alt',   label: '⌘ + Option', desc: 'Command + Option — default, works everywhere' },
+      { id: 'meta+shift', label: '⌘ + Shift',  desc: 'Command + Shift — easy one-hand hold' },
+      { id: 'ctrl+alt',   label: '⌃ + Option', desc: 'Control + Option — avoids system shortcuts' },
+      { id: 'ctrl+shift', label: '⌃ + Shift',  desc: 'Control + Shift — minimal finger stretch' },
+    ]
+  : [
+      { id: 'ctrl+alt',   label: 'Ctrl + Alt',   desc: 'Default — most common dictation shortcut' },
+      { id: 'ctrl+shift', label: 'Ctrl + Shift',  desc: 'Works cleanly in most Windows apps' },
+      { id: 'meta+alt',   label: 'Win + Alt',     desc: 'Windows key + Alt' },
+      { id: 'meta+shift', label: 'Win + Shift',   desc: 'Windows key + Shift' },
+    ];
 
 // ── Progress dots ─────────────────────────────────────────────────────────────
 function ProgressDots({ current }) {
@@ -35,7 +52,7 @@ function Step({ icon, iconBg = 'bg-zinc-800', title, subtitle, children, action,
   );
 }
 
-// ── Shared button components ──────────────────────────────────────────────────
+// ── Shared buttons ────────────────────────────────────────────────────────────
 function PrimaryBtn({ onClick, children, disabled }) {
   return (
     <button
@@ -88,13 +105,11 @@ function WelcomeStep({ onNext }) {
 
 function MicrophoneStep({ onNext }) {
   const [status, setStatus] = useState('idle');
-
   async function request() {
     setStatus('checking');
     const { mic } = await window.voiceType.checkPermissions();
     setStatus(mic.granted ? 'granted' : mic.needsManual ? 'manual' : 'denied');
   }
-
   return (
     <Step
       icon={<svg viewBox="0 0 24 24" fill="none" stroke={status === 'granted' ? 'white' : '#a1a1aa'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/></svg>}
@@ -127,24 +142,21 @@ function MicrophoneStep({ onNext }) {
 
 function AccessibilityStep({ onNext }) {
   const [granted, setGranted] = useState(false);
-
   async function check() {
     const { accessibility } = await window.voiceType.checkPermissions();
     setGranted(accessibility.granted);
   }
-
   useEffect(() => {
     check();
     const id = setInterval(check, 1500);
     return () => clearInterval(id);
   }, []);
-
   return (
     <Step
       icon={<svg viewBox="0 0 24 24" fill="none" stroke={granted ? 'white' : '#a1a1aa'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>}
       iconBg={granted ? 'bg-green-600 shadow-green-600/30' : 'bg-zinc-800'}
       title="Accessibility Access"
-      subtitle="Required to detect the hotkey globally and paste text into any app."
+      subtitle="Required to detect your hotkey globally and paste text into any app."
       action={
         granted
           ? <PrimaryBtn onClick={onNext}>Continue →</PrimaryBtn>
@@ -159,7 +171,7 @@ function AccessibilityStep({ onNext }) {
             <p className="text-zinc-300 text-[12px] leading-relaxed">
               Go to <span className="text-white font-medium">System Settings → Privacy & Security → Accessibility</span> and enable VoiceType.
             </p>
-            {!granted && <p className="text-zinc-600 text-[11px] mt-2">Waiting for permission…</p>}
+            <p className="text-zinc-600 text-[11px] mt-2">Waiting for permission…</p>
           </div>
         )
       }
@@ -168,14 +180,12 @@ function AccessibilityStep({ onNext }) {
 }
 
 function ModelStep({ onNext }) {
-  const [phase, setPhase] = useState('checking'); // checking | ready | needed | downloading | done | error
+  const [phase, setPhase] = useState('checking');
   const [progress, setProgress] = useState(0);
-
   useEffect(() => {
     window.voiceType.getModelStatus().then((s) => {
       setPhase(s.base?.installed ? 'ready' : 'needed');
     });
-
     const offProgress = window.voiceType.on('download-progress', ({ modelId, progress: p }) => {
       if (modelId === 'base') { setPhase('downloading'); setProgress(p); }
     });
@@ -185,19 +195,11 @@ function ModelStep({ onNext }) {
     const offError = window.voiceType.on('download-error', ({ modelId }) => {
       if (modelId === 'base') setPhase('error');
     });
-
     return () => { offProgress?.(); offComplete?.(); offError?.(); };
   }, []);
-
-  function startDownload() {
-    setPhase('downloading');
-    setProgress(0);
-    window.voiceType.downloadModel('base');
-  }
-
+  function startDownload() { setPhase('downloading'); setProgress(0); window.voiceType.downloadModel('base'); }
   const isReady = phase === 'ready' || phase === 'done';
   const pct = Math.round(progress * 100);
-
   return (
     <Step
       icon={<svg viewBox="0 0 24 24" fill="none" stroke={isReady ? 'white' : '#a1a1aa'} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>}
@@ -205,15 +207,11 @@ function ModelStep({ onNext }) {
       title="Speech Model"
       subtitle="Whisper Base (~142 MB) runs 100% locally. Downloaded once, used forever."
       action={
-        isReady
-          ? <PrimaryBtn onClick={onNext}>Continue →</PrimaryBtn>
-          : phase === 'downloading'
-          ? <PrimaryBtn disabled>Downloading…</PrimaryBtn>
-          : phase === 'error'
-          ? <PrimaryBtn onClick={startDownload}>Retry Download</PrimaryBtn>
-          : phase === 'needed'
-          ? <PrimaryBtn onClick={startDownload}>Download Model</PrimaryBtn>
-          : <PrimaryBtn disabled>Checking…</PrimaryBtn>
+        isReady ? <PrimaryBtn onClick={onNext}>Continue →</PrimaryBtn>
+        : phase === 'downloading' ? <PrimaryBtn disabled>Downloading…</PrimaryBtn>
+        : phase === 'error'       ? <PrimaryBtn onClick={startDownload}>Retry Download</PrimaryBtn>
+        : phase === 'needed'      ? <PrimaryBtn onClick={startDownload}>Download Model</PrimaryBtn>
+        :                           <PrimaryBtn disabled>Checking…</PrimaryBtn>
       }
       secondaryAction={!isReady && phase !== 'downloading' && phase !== 'checking' && (
         <GhostBtn onClick={onNext}>Skip for now</GhostBtn>
@@ -228,10 +226,7 @@ function ModelStep({ onNext }) {
             <span>{pct}%</span>
           </div>
           <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
-            <div
-              className="bg-blue-500 h-full rounded-full transition-all duration-300"
-              style={{ width: `${pct}%` }}
-            />
+            <div className="bg-blue-500 h-full rounded-full transition-all duration-300" style={{ width: `${pct}%` }} />
           </div>
           <p className="text-zinc-600 text-[11px] mt-2">142 MB · This only happens once</p>
         </div>
@@ -240,20 +235,110 @@ function ModelStep({ onNext }) {
   );
 }
 
+// ── Hotkey picker step ────────────────────────────────────────────────────────
+function HotkeyStep({ onNext }) {
+  const defaultId = isMac ? 'meta+alt' : 'ctrl+alt';
+  const [selected, setSelected] = useState(defaultId);
+  const [saved, setSaved] = useState(false);
+
+  async function handleSelect(id) {
+    setSelected(id);
+    setSaved(false);
+    await window.voiceType.setHotkey(id);
+    setSaved(true);
+  }
+
+  const chosen = HOTKEY_OPTIONS.find(o => o.id === selected);
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center px-8 gap-0">
+      {/* Icon */}
+      <div className="w-14 h-14 rounded-2xl bg-violet-600 shadow-lg shadow-violet-600/30 flex items-center justify-center mb-5">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
+          <rect x="2" y="6" width="20" height="12" rx="2"/>
+          <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/>
+        </svg>
+      </div>
+
+      <h2 className="text-[18px] font-semibold text-white mb-2 tracking-tight">Choose your hotkey</h2>
+      <p className="text-zinc-400 text-[13px] leading-relaxed mb-5 max-w-[260px]">
+        Hold this combo anywhere to start recording. Release to transcribe and paste.
+      </p>
+
+      {/* Options grid — 2×2 */}
+      <div className="w-full max-w-[340px] grid grid-cols-2 gap-2.5 mb-5">
+        {HOTKEY_OPTIONS.map((opt) => {
+          const isActive = selected === opt.id;
+          return (
+            <button
+              key={opt.id}
+              onClick={() => handleSelect(opt.id)}
+              className={`flex flex-col items-center justify-center gap-2 px-3 py-4 rounded-xl border transition-all duration-150 ${
+                isActive
+                  ? 'border-violet-500/60 bg-violet-500/10'
+                  : 'border-zinc-800 bg-zinc-900 hover:border-zinc-700'
+              }`}
+            >
+              {/* Key badge */}
+              <kbd className={`font-mono text-[13px] px-3 py-1.5 rounded-lg border transition-colors ${
+                isActive
+                  ? 'bg-violet-900/50 border-violet-600/50 text-violet-200'
+                  : 'bg-zinc-800 border-zinc-700 text-zinc-300'
+              }`}>
+                {opt.label}
+              </kbd>
+
+              {/* Description */}
+              <span className="text-[11px] text-zinc-500 leading-tight text-center">{opt.desc}</span>
+
+              {/* Active indicator dot */}
+              {isActive && (
+                <div className="w-1.5 h-1.5 rounded-full bg-violet-500" />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Live preview */}
+      {chosen && (
+        <div className="mb-1 flex items-center gap-2 text-[12px] text-zinc-500">
+          <span>Hold</span>
+          <kbd className="bg-zinc-800 border border-zinc-700 text-zinc-200 px-2.5 py-1 rounded-lg font-mono text-[12px]">
+            {chosen.label}
+          </kbd>
+          <span>to record · release to paste</span>
+        </div>
+      )}
+
+      <div className="flex flex-col items-center gap-2 mt-4">
+        <PrimaryBtn onClick={onNext}>
+          {saved ? 'Confirmed →' : 'Use this hotkey →'}
+        </PrimaryBtn>
+      </div>
+    </div>
+  );
+}
+
+// ── Done ──────────────────────────────────────────────────────────────────────
 function DoneStep({ onComplete }) {
-  const isMac = window.voiceType.platform === 'darwin';
+  const [hotkey, setHotkey] = useState(isMac ? 'meta+alt' : 'ctrl+alt');
+  useEffect(() => {
+    window.voiceType.getSettings().then(s => { if (s.hotkey) setHotkey(s.hotkey); });
+  }, []);
+  const chosen = HOTKEY_OPTIONS.find(o => o.id === hotkey);
   return (
     <Step
       icon={<svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7"><polyline points="20 6 9 17 4 12"/></svg>}
       iconBg="bg-green-600 shadow-green-600/30"
       title="You're all set!"
-      subtitle="VoiceType is running in your menu bar."
+      subtitle="VoiceType is running in your menu bar. Start dictating anywhere."
       action={<PrimaryBtn onClick={onComplete}>Open Settings</PrimaryBtn>}
     >
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4 text-center mb-2">
-        <p className="text-zinc-400 text-[12px] mb-1">Hold to record</p>
+        <p className="text-zinc-400 text-[12px] mb-2">Hold to record</p>
         <kbd className="bg-zinc-800 text-zinc-100 px-3 py-1.5 rounded-lg font-mono text-[13px] border border-zinc-700 shadow">
-          {isMac ? '⌘  Option' : 'Ctrl  Alt'}
+          {chosen?.label ?? (isMac ? '⌘ Option' : 'Ctrl Alt')}
         </kbd>
         <p className="text-zinc-600 text-[11px] mt-2">Release to stop and paste</p>
       </div>
@@ -275,6 +360,7 @@ export default function Onboarding({ onComplete }) {
     <MicrophoneStep onNext={next} />,
     <AccessibilityStep onNext={next} />,
     <ModelStep onNext={next} />,
+    <HotkeyStep onNext={next} />,
     <DoneStep onComplete={finish} />,
   ];
 

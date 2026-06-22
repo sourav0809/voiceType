@@ -58,8 +58,29 @@ function Row({ label, children }) {
   );
 }
 
-function GeneralTab({ modelReady, activeModel, recording }) {
+const HOTKEY_OPTIONS = window.voiceType.platform === 'darwin'
+  ? [
+      { id: 'meta+alt',   label: '⌘ + Option' },
+      { id: 'meta+shift', label: '⌘ + Shift'  },
+      { id: 'ctrl+alt',   label: '⌃ + Option' },
+      { id: 'ctrl+shift', label: '⌃ + Shift'  },
+    ]
+  : [
+      { id: 'ctrl+alt',   label: 'Ctrl + Alt'   },
+      { id: 'ctrl+shift', label: 'Ctrl + Shift'  },
+      { id: 'meta+alt',   label: 'Win + Alt'     },
+      { id: 'meta+shift', label: 'Win + Shift'   },
+    ];
+
+function GeneralTab({ modelReady, activeModel, recording, hotkey, onHotkeyChange }) {
   const isMac = window.voiceType.platform === 'darwin';
+  const activeHotkey = HOTKEY_OPTIONS.find(o => o.id === hotkey) || HOTKEY_OPTIONS[0];
+
+  async function handleHotkeyChange(id) {
+    await window.voiceType.setHotkey(id);
+    onHotkeyChange(id);
+  }
+
   return (
     <div className="space-y-4">
       <h2 className="text-[13px] font-semibold text-zinc-400 uppercase tracking-widest">General</h2>
@@ -67,12 +88,12 @@ function GeneralTab({ modelReady, activeModel, recording }) {
       <div className="bg-zinc-900 rounded-xl border border-zinc-800 px-4">
         <Row label="Engine">
           {recording ? (
-            <span className="flex items-center gap-2 text-red-400">
+            <span className="flex items-center gap-2 text-indigo-400">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inset-0 rounded-full bg-red-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                <span className="animate-ping absolute inset-0 rounded-full bg-indigo-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500" />
               </span>
-              Recording
+              Listening
             </span>
           ) : modelReady ? (
             <span className="flex items-center gap-2 text-green-400"><StatusDot color="green" />Ready</span>
@@ -83,18 +104,43 @@ function GeneralTab({ modelReady, activeModel, recording }) {
         <Row label="Active model">
           <span className="text-white capitalize font-medium">{activeModel || 'base'}</span>
         </Row>
-        <Row label="Hotkey">
-          <kbd className="bg-zinc-800 text-zinc-200 px-2 py-0.5 rounded-md font-mono text-[12px] border border-zinc-700">
-            {isMac ? '⌘ Option' : 'Ctrl + Alt'}
-          </kbd>
-        </Row>
+      </div>
+
+      {/* Hotkey selector */}
+      <div>
+        <p className="text-[12px] text-zinc-500 mb-2 px-1">Hotkey — hold to record, release to paste</p>
+        <div className="grid grid-cols-2 gap-2">
+          {HOTKEY_OPTIONS.map((opt) => {
+            const isActive = opt.id === hotkey;
+            return (
+              <button
+                key={opt.id}
+                onClick={() => handleHotkeyChange(opt.id)}
+                className={`flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-left transition-all duration-150 ${
+                  isActive
+                    ? 'border-indigo-500/50 bg-indigo-500/8'
+                    : 'border-zinc-800 bg-zinc-900 hover:border-zinc-700'
+                }`}
+              >
+                <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${
+                  isActive ? 'border-indigo-500 bg-indigo-500' : 'border-zinc-700'
+                }`}>
+                  {isActive && <div className="w-1 h-1 rounded-full bg-white" />}
+                </div>
+                <kbd className={`font-mono text-[11px] font-medium ${isActive ? 'text-indigo-300' : 'text-zinc-400'}`}>
+                  {opt.label}
+                </kbd>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="bg-blue-950/40 border border-blue-900/50 rounded-xl p-4">
         <p className="text-blue-300 text-[13px] font-medium mb-2">How to use</p>
         <ol className="space-y-1.5 text-blue-400/80 text-[12px] leading-relaxed list-none">
           <li className="flex gap-2"><span className="text-blue-500 font-bold">1.</span> Click where you want your text to appear</li>
-          <li className="flex gap-2"><span className="text-blue-500 font-bold">2.</span> Hold <kbd className="bg-blue-900/60 px-1 rounded font-mono text-[11px] text-blue-300">{isMac ? '⌘ Option' : 'Ctrl+Alt'}</kbd> and speak</li>
+          <li className="flex gap-2"><span className="text-blue-500 font-bold">2.</span> Hold <kbd className="bg-blue-900/60 px-1.5 rounded font-mono text-[11px] text-blue-300">{activeHotkey.label}</kbd> and speak</li>
           <li className="flex gap-2"><span className="text-blue-500 font-bold">3.</span> Release — your words are pasted instantly</li>
         </ol>
       </div>
@@ -268,9 +314,15 @@ export default function Settings() {
   const [modelReady, setModelReady] = useState(false);
   const [activeModel, setActiveModel] = useState('base');
   const [recording, setRecording] = useState(false);
+  const [hotkey, setHotkey] = useState(
+    window.voiceType.platform === 'darwin' ? 'meta+alt' : 'ctrl+alt'
+  );
 
   useEffect(() => {
-    window.voiceType.getSettings().then((s) => setActiveModel(s.activeModel || 'base'));
+    window.voiceType.getSettings().then((s) => {
+      setActiveModel(s.activeModel || 'base');
+      if (s.hotkey) setHotkey(s.hotkey);
+    });
     window.voiceType.getModelReady().then((s) => setModelReady(s?.ready ?? false));
     const a = window.voiceType.on('model-ready', (s) => setModelReady(s?.ready ?? false));
     const b = window.voiceType.on('recording-state', setRecording);
@@ -307,7 +359,7 @@ export default function Settings() {
 
         {/* Content */}
         <main className="flex-1 min-w-0 overflow-y-auto p-5">
-          {tab === 'general' && <GeneralTab modelReady={modelReady} activeModel={activeModel} recording={recording} />}
+          {tab === 'general' && <GeneralTab modelReady={modelReady} activeModel={activeModel} recording={recording} hotkey={hotkey} onHotkeyChange={setHotkey} />}
           {tab === 'models'  && <ModelsTab activeModel={activeModel} onModelSwitch={(id) => setActiveModel(id)} />}
           {tab === 'about'   && <AboutTab />}
         </main>

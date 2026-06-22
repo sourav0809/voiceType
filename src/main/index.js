@@ -29,9 +29,9 @@ app.on('second-instance', () => {
 function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: 720,
-    height: 560,
+    height: 620,
     minWidth: 620,
-    minHeight: 480,
+    minHeight: 560,
     show: false,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     backgroundColor: '#09090b',
@@ -61,10 +61,13 @@ function createMainWindow() {
   });
 }
 
+const OVERLAY_W = 240;
+const OVERLAY_H = 52;
+
 function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
-    width: 260,
-    height: 60,
+    width: OVERLAY_W,
+    height: OVERLAY_H,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
@@ -73,6 +76,7 @@ function createOverlayWindow() {
     hasShadow: false,
     show: false,
     focusable: false,
+    type: process.platform === 'linux' ? 'toolbar' : undefined,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -86,14 +90,23 @@ function createOverlayWindow() {
     overlayWindow.loadFile(RENDERER_PROD, { hash: 'overlay' });
   }
 
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+  // floating panel sits above everything including full-screen apps
+  overlayWindow.setAlwaysOnTop(true, 'floating', 1);
+  if (process.platform === 'darwin') {
+    overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  }
 }
 
 function positionOverlay() {
   if (!overlayWindow) return;
   const { screen } = require('electron');
-  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-  overlayWindow.setPosition(Math.floor((width - 260) / 2), height - 80);
+  // Always top-center of the display that currently has the mouse
+  const cursor = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(cursor);
+  const wa = display.workArea;
+  const x = Math.round(wa.x + (wa.width - OVERLAY_W) / 2);
+  const y = Math.round(wa.y + 16); // 16px below top of work area
+  overlayWindow.setPosition(x, y);
 }
 
 function openSettings() {
@@ -183,7 +196,8 @@ app.whenReady().then(async () => {
       }
 
       tray.setStatus('idle');
-    }
+    },
+    store.get('hotkey') || (process.platform === 'darwin' ? 'meta+alt' : 'ctrl+alt')
   );
 
   // Load model after UI is ready

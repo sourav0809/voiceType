@@ -14,6 +14,7 @@
     "build:mac": "npm run setup && npm run build:native:electron && npm run build:renderer && electron-builder --mac --config electron-builder.config.js",
     "build:win": "npm run setup && npm run build:renderer && electron-builder --win --config electron-builder.config.js",
     "build:all": "npm run setup && npm run build:native:electron && npm run build:renderer && electron-builder --mac --win --config electron-builder.config.js",
+    "reset": "node -e \"require('fs').writeFileSync(require('path').join(require('os').homedir(), 'Library/Application Support/voicetype/voicetype-settings.json'), '{}')\" && echo 'Settings cleared — app will start from onboarding'",
     "postinstall": "electron-builder install-app-deps"
   },
   "keywords": [],

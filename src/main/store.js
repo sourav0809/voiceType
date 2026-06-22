@@ -6,6 +6,7 @@ const store = new Store({
     onboardingComplete: false,
     activeModel: 'base',
     theme: 'dark',
+    hotkey: process.platform === 'darwin' ? 'meta+alt' : 'ctrl+alt',
   },
 });
 
