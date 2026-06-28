@@ -208,9 +208,12 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on('will-quit', () => {
+app.on('will-quit', (e) => {
+  e.preventDefault();
   hotkey.teardown();
   whisper.dispose();
+  // uIOhook.stop() can hang on macOS — force exit after cleanup
+  process.exit(0);
 });
 
 app.on('window-all-closed', () => {

@@ -323,10 +323,25 @@ export default function Settings() {
       setActiveModel(s.activeModel || 'base');
       if (s.hotkey) setHotkey(s.hotkey);
     });
-    window.voiceType.getModelReady().then((s) => setModelReady(s?.ready ?? false));
-    const a = window.voiceType.on('model-ready', (s) => setModelReady(s?.ready ?? false));
+
+    // Poll until ready — handles the race where model finishes loading
+    // before the renderer mounts and misses the one-shot IPC event
+    let cancelled = false;
+    function poll() {
+      window.voiceType.getModelReady().then((s) => {
+        if (cancelled) return;
+        if (s?.ready) {
+          setModelReady(true);
+        } else {
+          setTimeout(poll, 1000);
+        }
+      });
+    }
+    poll();
+
+    const a = window.voiceType.on('model-ready', (s) => { setModelReady(s?.ready ?? false); });
     const b = window.voiceType.on('recording-state', setRecording);
-    return () => { a(); b(); };
+    return () => { cancelled = true; a(); b(); };
   }, []);
 
   return (
